@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+# Git pre-commit hook: fast local checks (secret scan + YAML lint).
+# Heavier security scans run in the Jenkins CI/CD pipeline, not here.
+set -euo pipefail
+
+readonly EXIT_SUCCESS=0
+readonly EXIT_SECRET_FOUND=1
+readonly EXIT_LINT_FAILED=2
+
+# High-signal secret assignments to block before they reach history.
+readonly SECRET_PATTERN='(password|passwd|secret|api[_-]?key|access[_-]?key|token)[[:space:]]*[:=]|-----BEGIN [A-Z ]*PRIVATE KEY-----'
+
+# Block the commit when staged changes contain likely hardcoded secrets.
+check_secrets() {
+  local staged_diff
+  staged_diff="$(git diff --cached --no-color)"
+  if printf '%s' "${staged_diff}" | grep -Eiq "${SECRET_PATTERN}"; then
+    printf 'ERROR: possible hardcoded secret in staged changes:\n' >&2
+    printf '%s' "${staged_diff}" | grep -Ein "${SECRET_PATTERN}" >&2 || true
+    printf 'Remove the secret, or use "git commit --no-verify" to override intentionally.\n' >&2
+    return "${EXIT_SECRET_FOUND}"
+  fi
+}
+
+# Lint all tracked YAML files when yamllint is available.
+lint_yaml() {
+  if ! command -v yamllint >/dev/null 2>&1; then
+    printf 'yamllint not installed; skipping YAML lint.\n'
+    return "${EXIT_SUCCESS}"
+  fi
+  local file
+  while IFS= read -r -d '' file; do
+    if ! yamllint "${file}"; then
+      printf 'ERROR: yamllint failed for %s\n' "${file}" >&2
+      return "${EXIT_LINT_FAILED}"
+    fi
+  done < <(find . -type f \( -name '*.yml' -o -name '*.yaml' \) -not -path './.git/*' -print0)
+}
+
+main() {
+  printf 'Running pre-commit checks...\n'
+  check_secrets
+  lint_yaml
+  printf 'Pre-commit checks passed.\n'
+  return "${EXIT_SUCCESS}"
+}
+
+main "$@"

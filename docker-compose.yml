@@ -1,0 +1,34 @@
+services:
+  # --- Static analysis (SAST / secrets / dependencies) ---
+  gitleaks:
+    image: zricethezav/gitleaks:latest
+    volumes:
+      - ./:/repo
+    command: detect --source="/repo" --report-path="/repo/reports/gitleaks.json" --verbose
+
+  semgrep:
+    image: semgrep/semgrep:latest
+    volumes:
+      - ./:/src
+    command: semgrep --config "p/javascript" --config "p/nodejs" --config "/src/configs/semgrep.yml" /src
+
+  trivy:
+    image: aquasec/trivy:latest
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./:/root/
+    command: fs /root
+
+  njsscan:
+    image: python:3.11-slim
+    volumes:
+      - ./:/src
+    command: bash -c "pip install --quiet njsscan && njsscan --json -o /src/reports/njsscan.json /src"
+
+  # --- Dynamic analysis (DAST) ---
+  zap:
+    image: zaproxy/zap-stable
+    volumes:
+      - ./reports:/zap/wrk:rw
+    command: zap-baseline.py -t http://host.docker.internal:3000 -r zap-report.html -J zap-report.json
+    network_mode: host

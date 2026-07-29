@@ -1,0 +1,43 @@
+rules:
+  # Hardcoded credentials / secrets assigned to a suspiciously named variable.
+  - id: js-hardcoded-secret
+    message: "Possible hardcoded credential or secret."
+    severity: ERROR
+    languages: [javascript, typescript]
+    metavariable-regex:
+      metavariable: $NAME
+      regex: (?i).*(password|passwd|secret|token|api[_-]?key|access[_-]?key|private[_-]?key).*
+    pattern-either:
+      - pattern: const $NAME = "..."
+      - pattern: let $NAME = "..."
+      - pattern: var $NAME = "..."
+      - pattern: $NAME = "..."
+
+  # SQL injection via string concatenation or template literals in queries.
+  - id: js-sql-injection
+    message: "Potential SQL injection: query built from untrusted string concatenation."
+    severity: ERROR
+    languages: [javascript, typescript]
+    pattern-either:
+      - pattern: $DB.query("..." + ...)
+      - pattern: $DB.query(`...${...}...`)
+      - pattern: sequelize.query("..." + ...)
+      - pattern: sequelize.query(`...${...}...`)
+
+  # Command injection through child_process with dynamic input.
+  - id: js-command-injection
+    message: "Potential command injection via child_process."
+    severity: ERROR
+    languages: [javascript, typescript]
+    pattern-either:
+      - pattern: child_process.exec($CMD + ...)
+      - pattern: child_process.exec(`...${...}...`)
+      - pattern: exec($CMD + ...)
+      - pattern: exec(`...${...}...`)
+
+  # Use of eval() on dynamic input is dangerous.
+  - id: js-dangerous-eval
+    message: "Use of eval() can lead to code injection."
+    severity: WARNING
+    languages: [javascript, typescript]
+    pattern: eval(...)

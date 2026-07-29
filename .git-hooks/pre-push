@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+# Git pre-push hook: broader validation before changes leave the machine.
+# Confirms the pipeline definition and required config/target files exist and
+# that the Compose file is syntactically valid.
+set -euo pipefail
+
+readonly EXIT_SUCCESS=0
+readonly EXIT_MISSING_FILE=1
+
+# Jenkins remote-build trigger settings (override via environment).
+readonly JENKINS_URL="${JENKINS_URL:-http://localhost:8081}"
+readonly JENKINS_JOB="${JENKINS_JOB:-DevSecOps-Pipeline}"
+readonly JENKINS_BUILD_TOKEN="${JENKINS_BUILD_TOKEN:-devsecops}"
+
+# Fail the push when a required file is missing.
+require_file() {
+  local file="$1"
+  local label="$2"
+  if [[ -f "${file}" ]]; then
+    printf '  [ok] %s found (%s)\n' "${label}" "${file}"
+    return "${EXIT_SUCCESS}"
+  fi
+  printf 'ERROR: %s not found (%s)\n' "${label}" "${file}" >&2
+  return "${EXIT_MISSING_FILE}"
+}
+
+# Validate docker-compose.yml syntax with whichever Compose CLI is available.
+validate_compose() {
+  local compose_file="docker-compose.yml"
+  [[ -f "${compose_file}" ]] || return "${EXIT_SUCCESS}"
+  if docker compose version >/dev/null 2>&1; then
+    docker compose -f "${compose_file}" config -q && printf '  [ok] docker compose config valid\n'
+  elif command -v docker-compose >/dev/null 2>&1; then
+    docker-compose -f "${compose_file}" config -q && printf '  [ok] docker-compose config valid\n'
+  else
+    printf '  [warn] Compose CLI not available; skipping validation\n'
+  fi
+}
+
+# Trigger a Jenkins build after a successful push. Best-effort: a missing curl
+# or an unreachable Jenkins never blocks the push (SCM polling is the fallback).
+trigger_jenkins() {
+  if ! command -v curl >/dev/null 2>&1; then
+    printf '  [warn] curl not available; skipping Jenkins trigger\n'
+    return "${EXIT_SUCCESS}"
+  fi
+  local url="${JENKINS_URL}/job/${JENKINS_JOB}/build?token=${JENKINS_BUILD_TOKEN}"
+  if curl -fsS -X POST "${url}" >/dev/null 2>&1; then
+    printf '  [ok] Triggered Jenkins build: %s\n' "${JENKINS_JOB}"
+  else
+    printf '  [warn] Jenkins not reachable at %s; relying on SCM polling\n' "${JENKINS_URL}"
+  fi
+  return "${EXIT_SUCCESS}"
+}
+
+main() {
+  printf 'Running pre-push validation...\n'
+  require_file "Jenkinsfile" "Jenkinsfile"
+  require_file "configs/semgrep.yml" "Semgrep config"
+  require_file "targets/endpoints.txt" "Endpoints file"
+  validate_compose
+  trigger_jenkins
+  printf 'Pre-push checks passed.\n'
+  return "${EXIT_SUCCESS}"
+}
+
+main "$@"

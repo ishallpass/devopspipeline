@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+*.db
+*.sqlite3
+
+# Reports
+reports/*.json
+reports/*.html
+reports/*.md
+!reports/.gitkeep
+
+# Environment
+.env
+.venv
+
+# Docker
+*.log
+docker-compose.override.yml
+
+# IDE
+.vscode/
+.idea/
+*.swp

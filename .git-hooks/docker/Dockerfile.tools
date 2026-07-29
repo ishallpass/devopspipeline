@@ -1,0 +1,18 @@
+FROM python:3.9-slim
+
+# Install security tools
+RUN pip install bandit safety pylint
+
+# Copy configurations
+COPY security-tools/configs/ /configs/
+
+# Install additional tools
+RUN apt-get update && apt-get install -y \
+    nmap \
+    curl \
+    jq \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /workspace
+
+CMD ["/bin/bash"]

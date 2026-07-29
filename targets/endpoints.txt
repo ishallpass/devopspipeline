@@ -1,0 +1,17 @@
+# Main endpoints
+http://localhost:3000
+http://localhost:3000/#/login
+http://localhost:3000/#/search
+
+# API endpoints
+http://localhost:3000/rest/products/search
+http://localhost:3000/api/Products
+http://localhost:3000/rest/user/login
+
+# SQL Injection test endpoints
+http://localhost:3000/rest/products/search?q=test
+http://localhost:3000/rest/user/login
+
+# Vulnerable endpoints
+http://localhost:3000/rest/basket/1
+http://localhost:3000/rest/track-order
